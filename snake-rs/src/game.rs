@@ -1,21 +1,34 @@
 use rand::random;
+use sdl2::{pixels::Color, rect::Rect, render::WindowCanvas};
 use std::collections::VecDeque;
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 struct Coord(u16, u16);
 
-struct Board {
+pub struct Board {
     board_size: (u16, u16),
 
     snake: VecDeque<Coord>,
     food: Coord,
 }
 
-enum Direction {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
     Up,
     Down,
     Left,
     Right,
+}
+
+impl Direction {
+    pub fn invert(&self) -> Self {
+        match self {
+            Self::Up => Self::Down,
+            Self::Down => Self::Up,
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+        }
+    }
 }
 
 impl Board {
@@ -34,30 +47,73 @@ impl Board {
         board
     }
 
+    pub fn next(&mut self, dir: Direction) -> bool {
+        let Some(prev_tail) = self.advance(dir) else {
+            return false;
+        };
+
+        if self.snake.front().unwrap() == &self.food {
+            self.snake.push_back(prev_tail);
+            self.move_food();
+        }
+
+        return true;
+    }
+
     /// return the removed tail if no collision
     fn advance(&mut self, dir: Direction) -> Option<Coord> {
         let tail = self.snake.pop_back().unwrap();
         let next_head = move_cell(*self.snake.front().unwrap(), dir, self.board_size)?;
         let self_collision = self.snake.iter().find(|&&cell| cell == next_head).is_some();
+        self.snake.push_front(next_head);
         (!self_collision).then_some(tail)
     }
 
-    /// return true iff no collision
-    fn extend(&mut self, dir: Direction) -> bool {
-        self.advance(dir)
-            .and_then(|tail| Some(self.snake.push_back(tail)))
-            .is_some()
-    }
+    // /// return true iff no collision
+    // fn extend(&mut self, dir: Direction) -> bool {
+    //     self.advance(dir)
+    //         .and_then(|tail| Some(self.snake.push_back(tail)))
+    //         .is_some()
+    // }
 
     fn move_food(&mut self) {
-        let x: u16 = random();
-        let y: u16 = random();
+        let x: u16 = random::<u16>() % self.board_size.0;
+        let y: u16 = random::<u16>() % self.board_size.1;
         let next = Coord(x, y);
         if self.snake.iter().find(|&&cell| cell == next).is_some() {
             self.move_food();
         } else {
             self.food = next;
         }
+    }
+
+    pub fn draw(&self, canvas: &mut WindowCanvas, cell_size: (u16, u16)) {
+        //
+        canvas.set_draw_color(Color::RGB(0, 0, 0));
+        canvas.clear();
+
+        // food
+        canvas.set_draw_color(Color::RGB(120, 0, 0));
+        canvas
+            .fill_rect(self.get_rect(self.food, cell_size))
+            .unwrap();
+
+        // snake
+        canvas.set_draw_color(Color::RGB(255, 255, 255));
+        for &cell in self.snake.iter() {
+            canvas.fill_rect(self.get_rect(cell, cell_size)).unwrap();
+        }
+    }
+
+    fn get_rect(&self, cell: Coord, cell_size: (u16, u16)) -> Rect {
+        // let cell_width: f32 = (window_size.0 as f32) / self.board_size.0 as f32;
+        // let cell_height: f32 = (window_size.1 as f32) / self.board_size.1 as f32;
+        Rect::new(
+            (cell_size.0 * cell.0 + 1) as i32,
+            ((self.board_size.1 - 1 - cell.1) * cell_size.1 + 1) as i32,
+            cell_size.0 as u32 - 2,
+            cell_size.1 as u32 - 2,
+        )
     }
 }
 
