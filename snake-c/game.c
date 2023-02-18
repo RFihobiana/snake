@@ -75,7 +75,7 @@ void Game_Redraw(const Game *game, SDL_Renderer *renderer) {
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     const Snake *snake = &board->snake;
     unsigned snake_length =
-        (snake->head_idx - snake->tail_idx + 1) % snake->ring_buffer_size;
+        (snake->head_idx - snake->tail_idx) % snake->ring_buffer_size + 1;
     for (unsigned i = 0; i < snake_length; ++i) {
         unsigned idx = (snake->head_idx - i) % snake->ring_buffer_size;
         Game_GetRect(game, &snake->ring_buffer[idx], &rect);

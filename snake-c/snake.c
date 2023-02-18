@@ -9,7 +9,7 @@ static int Coord_Equals(const Coord *left, const Coord *right) {
 
 // static void DumpSnake(Snake *snake) {
 //     unsigned snake_length =
-//         (snake->head_idx - snake->tail_idx + 1) % snake->ring_buffer_size;
+//         (snake->head_idx - snake->tail_idx) % snake->ring_buffer_size + 1;
 //     printf("Snake [%d]", snake_length);
 //     for (unsigned i = 0; i < snake_length; ++i) {
 //         unsigned idx = (snake->head_idx - i) % snake->ring_buffer_size;
@@ -107,15 +107,22 @@ static int Board_Extend(Board *board, Direction dir) {
         // buffer is full
         // re-allocate
         unsigned buffer_size = snake->ring_buffer_size << 1;
-        Coord *buffer = realloc(snake->ring_buffer, buffer_size);
+        Coord *buffer =
+            realloc(snake->ring_buffer, buffer_size * sizeof(Coord));
+        if (!buffer) {
+            printf("Failed to allocate memory\n");
+            exit(1);
+        }
         if (snake->head_idx < snake->tail_idx) {
-            memcpy(&buffer[snake->ring_buffer_size], &buffer,
+            memcpy(&buffer[snake->ring_buffer_size], buffer,
                    snake->tail_idx * sizeof(Coord));
             snake->head_idx += snake->ring_buffer_size;
-            snake->ring_buffer_size = buffer_size;
-            snake->ring_buffer = buffer;
+            next_head_idx = (snake->head_idx + 1) % buffer_size;
         }
+        snake->ring_buffer_size = buffer_size;
+        snake->ring_buffer = buffer;
     }
+
     snake->ring_buffer[next_head_idx] = head;
     snake->head_idx = next_head_idx;
 
