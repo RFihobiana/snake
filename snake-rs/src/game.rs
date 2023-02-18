@@ -1,6 +1,9 @@
 use rand::random;
 use sdl2::{pixels::Color, rect::Rect, render::WindowCanvas};
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    time::{Duration, Instant},
+};
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 struct Coord(u16, u16);
@@ -87,7 +90,7 @@ impl Board {
         }
     }
 
-    pub fn draw(&self, canvas: &mut WindowCanvas, cell_size: (u16, u16)) {
+    pub fn draw(&self, canvas: &mut WindowCanvas, cell_size: (u32, u32)) {
         //
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.clear();
@@ -105,24 +108,13 @@ impl Board {
         }
     }
 
-    fn get_rect(&self, cell: Coord, cell_size: (u16, u16)) -> Rect {
-        // let cell_width: f32 = (window_size.0 as f32) / self.board_size.0 as f32;
-        // let cell_height: f32 = (window_size.1 as f32) / self.board_size.1 as f32;
+    fn get_rect(&self, cell: Coord, cell_size: (u32, u32)) -> Rect {
         Rect::new(
-            (cell_size.0 * cell.0 + 1) as i32,
-            ((self.board_size.1 - 1 - cell.1) * cell_size.1 + 1) as i32,
+            (cell_size.0 * cell.0 as u32 + 1) as i32,
+            ((self.board_size.1 - 1 - cell.1) as u32 * cell_size.1 + 1) as i32,
             cell_size.0 as u32 - 2,
             cell_size.1 as u32 - 2,
         )
-    }
-}
-
-fn move_cell_unchecked(cell: Coord, dir: Direction) -> Coord {
-    match dir {
-        Direction::Up => Coord(cell.0, cell.1 + 1),
-        Direction::Down => Coord(cell.0, cell.1 - 1),
-        Direction::Left => Coord(cell.0 - 1, cell.1),
-        Direction::Right => Coord(cell.0 + 1, cell.1),
     }
 }
 
@@ -132,5 +124,61 @@ fn move_cell(cell: Coord, dir: Direction, board_size: (u16, u16)) -> Option<Coor
         Direction::Down => (cell.1 > 0).then(|| Coord(cell.0, cell.1 - 1)),
         Direction::Left => (cell.0 > 0).then(|| Coord(cell.0 - 1, cell.1)),
         Direction::Right => (cell.0 < board_size.0 - 1).then(|| Coord(cell.0 + 1, cell.1)),
+    }
+}
+
+pub struct Game {
+    cell_size: (u32, u32),
+    next_direction: Direction,
+    current_direction: Direction,
+    latest_move: Instant,
+    speed: Duration,
+    board: Board,
+}
+
+pub enum PollResult {
+    None,
+    Redraw,
+    End,
+}
+
+impl Game {
+    pub fn new(board_size: (u16, u16), cell_size: (u32, u32)) -> Game {
+        Game {
+            cell_size,
+            next_direction: Direction::Right,
+            current_direction: Direction::Right,
+            latest_move: Instant::now(),
+            speed: Duration::from_millis(600),
+            board: Board::new(board_size, 3),
+        }
+    }
+
+    pub fn set_direction(&mut self, dir: Direction) {
+        if dir != self.current_direction.invert() {
+            if dir == self.current_direction {
+                self.latest_move = Instant::now().checked_sub(self.speed).unwrap();
+            }
+            self.next_direction = dir;
+        }
+    }
+
+    pub fn poll(&mut self) -> PollResult {
+        if self.latest_move.elapsed() > self.speed {
+            self.latest_move = self.latest_move.checked_add(self.speed).unwrap();
+            self.current_direction = self.next_direction;
+
+            if !self.board.next(self.current_direction) {
+                PollResult::End
+            } else {
+                PollResult::Redraw
+            }
+        } else {
+            PollResult::None
+        }
+    }
+
+    pub fn redraw(&self, canvas: &mut WindowCanvas) {
+        self.board.draw(canvas, self.cell_size);
     }
 }
